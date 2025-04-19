@@ -2,18 +2,15 @@ import streamlit as st
 import requests
 from bs4 import BeautifulSoup
 
-# URL to fetch news from
+# Fetch news from Inshorts
 url = "https://www.inshorts.com/en/read"
 r = requests.get(url)
 content = r.content
 soup = BeautifulSoup(content, 'html.parser')
 all_news = soup.find_all('div', {'class': 'news-card z-depth-1'})
 
-# Load common words from file
+# Since words.txt is empty, we just use an empty list
 common_words = []
-with open("words.txt") as file:
-    for word in file:
-        common_words.append(word.strip())
 
 # Extract and process news
 news_data = []
@@ -27,11 +24,11 @@ for news in all_news:
         image_div = news.find('div', {'class': 'news-card-image'})
         image_url = image_div.get('style')[23:-3] if image_div else ''
 
-        # Extract keyword
+        # Extract keyword (now all words are considered)
         headline_words = headline.replace('.', '').replace(',', '').split()
         body_words = body.replace('.', ' ').replace(',', '').split()
         word_counts = [
-            body_words.count(word) if word.lower() not in common_words else 0
+            body_words.count(word)
             for word in headline_words
         ]
         keyword = headline_words[word_counts.index(max(word_counts))] if word_counts else ""
@@ -52,7 +49,7 @@ st.set_page_config(page_title="Inshorts News", layout="wide")
 st.title("🗞️ Inshorts News Summary")
 st.write("News fetched live from [Inshorts](https://www.inshorts.com/en/read).")
 
-for i, item in enumerate(news_data):
+for item in news_data:
     with st.container():
         st.markdown(f"### {item['Headline']}")
         cols = st.columns([1, 3])
