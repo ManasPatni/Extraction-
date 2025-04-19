@@ -1,84 +1,68 @@
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
-import pandas as pd
-from datetime import datetime
 
-def extract_past_event_data_from_url(url):
-    """Extracts past event data (Event Name, Host Name, LinkedIn URL) from the given URL."""
+# URL to fetch news from
+url = "https://www.inshorts.com/en/read"
+r = requests.get(url)
+content = r.content
+soup = BeautifulSoup(content, 'html.parser')
+all_news = soup.find_all('div', {'class': 'news-card z-depth-1'})
+
+# Load common words from file
+common_words = []
+with open("words.txt") as file:
+    for word in file:
+        common_words.append(word.strip())
+
+# Extract and process news
+news_data = []
+for news in all_news:
     try:
-        # Sending a GET request to the URL
-        response = requests.get(url)
-        response.raise_for_status()  # Check if the request was successful
+        headline = news.find('span', {'itemprop': 'headline'}).text.strip()
+        author = news.find('span', {'class': 'author'}).text.strip()
+        body = news.find('div', {'itemprop': 'articleBody'}).text.strip()
+        anchor = news.find('a', {'class': 'source'})
+        source_url = anchor.get('href') if anchor else ''
+        image_div = news.find('div', {'class': 'news-card-image'})
+        image_url = image_div.get('style')[23:-3] if image_div else ''
 
-        # Parse HTML content using BeautifulSoup
-        soup = BeautifulSoup(response.content, 'html.parser')
+        # Extract keyword
+        headline_words = headline.replace('.', '').replace(',', '').split()
+        body_words = body.replace('.', ' ').replace(',', '').split()
+        word_counts = [
+            body_words.count(word) if word.lower() not in common_words else 0
+            for word in headline_words
+        ]
+        keyword = headline_words[word_counts.index(max(word_counts))] if word_counts else ""
 
-        # Initialize a list to store event data
-        events_data = []
+        news_data.append({
+            "Headline": headline,
+            "Author": author,
+            "Body": body,
+            "Source URL": source_url,
+            "Image": image_url,
+            "Keyword": keyword
+        })
+    except Exception as e:
+        continue
 
-        # Find all event containers (this will depend on the actual HTML structure)
-        events = soup.find_all('div', class_='event-container')  # Update with actual HTML structure
+# Streamlit UI
+st.set_page_config(page_title="Inshorts News", layout="wide")
+st.title("🗞️ Inshorts News Summary")
+st.write("News fetched live from [Inshorts](https://www.inshorts.com/en/read).")
 
-        for event in events:
-            event_name = event.find('h2', class_='event-name').get_text(strip=True) if event.find('h2', class_='event-name') else 'N/A'
-            host_name = event.find('p', class_='host-name').get_text(strip=True) if event.find('p', class_='host-name') else 'N/A'
-            linkedin_url = event.find('a', href=True, text='LinkedIn')
-            linkedin_url = linkedin_url['href'] if linkedin_url else 'N/A'
-            
-            # Find the event date (this will depend on the actual HTML structure)
-            event_date_str = event.find('span', class_='event-date').get_text(strip=True) if event.find('span', class_='event-date') else None
-
-            # If the event date exists, convert it to a datetime object and check if it's a past event
-            if event_date_str:
-                # Format the date string (adjust the format to match the page's date format)
-                try:
-                    event_date = datetime.strptime(event_date_str, "%B %d, %Y")  # Adjust format as needed
-                    if event_date < datetime.now():  # Past event
-                        events_data.append({
-                            'Event Name': event_name,
-                            'Host Name': host_name,
-                            'LinkedIn Profile URL': linkedin_url,
-                            'Event Date': event_date_str
-                        })
-                except ValueError:
-                    continue  # Skip if the date format is incorrect or parsing fails
-            else:
-                continue  # Skip if no event date is found
-
-        return events_data
-    except requests.exceptions.RequestException as e:
-        return f"Error fetching data: {e}"
-
-# Streamlit UI setup
-st.title("Past Event Data Extraction")
-st.write("Enter a URL to extract past event details:")
-
-# URL input from the user
-url = st.text_input("Enter URL:")
-
-if url:
-    # Extract past event data from the URL
-    events_data = extract_past_event_data_from_url(url)
-
-    if isinstance(events_data, list):
-        if events_data:
-            # Convert to DataFrame
-            df = pd.DataFrame(events_data)
-
-            # Save to CSV file
-            csv_file = df.to_csv(index=False)
-
-            # Provide download link for the CSV file
-            st.write("Here is the extracted data for past events:")
-            st.dataframe(df)  # Display the data in the app
-            st.download_button(
-                label="Download CSV",
-                data=csv_file,
-                file_name="past_event_data.csv",
-                mime="text/csv"
-            )
-        else:
-            st.write("No past events found on the page.")
-    else:
-        st.write(events_data)  # If there's an error message
+for i, item in enumerate(news_data):
+    with st.container():
+        st.markdown(f"### {item['Headline']}")
+        cols = st.columns([1, 3])
+        with cols[0]:
+            if item['Image']:
+                st.image(item['Image'], width=200)
+        with cols[1]:
+            st.write(f"**Author**: {item['Author']}")
+            st.write(item['Body'])
+            if item['Source URL']:
+                st.markdown(f"[🔗 Read more]({item['Source URL']})")
+            st.markdown(f"**Keyword**: `#{item['Keyword']}`")
+        st.markdown("---")
