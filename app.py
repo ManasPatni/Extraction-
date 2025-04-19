@@ -1,74 +1,61 @@
+import streamlit as st
 import requests
 from bs4 import BeautifulSoup
-import streamlit as st
 
-# Function to extract the event details
-def extract_event_details(event_url):
-    """Extract event details including the event name, host name, and LinkedIn profile URL."""
+def extract_event_data_from_url(url):
+    """Extracts event data (Event Name, Host Name, LinkedIn URL) from the given URL."""
     try:
-        # Make a request to the event detail page
-        response = requests.get(event_url)
-        response.raise_for_status()
-        
-        # Parse the HTML content
-        soup = BeautifulSoup(response.text, 'html.parser')
+        # Sending a GET request to the URL
+        response = requests.get(url)
+        response.raise_for_status()  # Check if the request was successful
 
-        # Extract event name
-        event_name = soup.find('h1', class_='event-title').text.strip()
+        # Parse HTML content using BeautifulSoup
+        soup = BeautifulSoup(response.content, 'html.parser')
 
-        # Extract the host name and LinkedIn URL
-        host_section = soup.find('section', class_='host-section')
-        host_name = host_section.find('span', class_='host-name').text.strip()
-        linkedin_url = host_section.find('a', class_='linkedin-link')['href']
-        
-        return event_name, host_name, linkedin_url
-    except Exception as e:
-        return None, None, f"Error: {str(e)}"
+        # Initialize a list to store event data
+        events_data = []
 
-# Function to scrape the event listing page
-def scrape_event_listing(listing_url):
-    """Scrape event listing page for all event details."""
-    try:
-        # Send a request to the event listing page
-        response = requests.get(listing_url)
-        response.raise_for_status()
-        
-        # Parse the page content
-        soup = BeautifulSoup(response.text, 'html.parser')
+        # Find all event containers (this will depend on the actual HTML structure)
+        events = soup.find_all('div', class_='event-container')  # Update with actual HTML structure
 
-        # Find all event links on the listing page
-        event_links = []
-        for event in soup.find_all('a', class_='event-link'):
-            event_links.append(event['href'])
-        
-        # Extract details for each event
-        events = []
-        for event_url in event_links:
-            event_name, host_name, linkedin_url = extract_event_details(event_url)
-            if event_name and host_name:
-                events.append((event_name, host_name, linkedin_url))
-        
-        return events
-    except Exception as e:
-        return f"Error: {str(e)}"
+        for event in events:
+            event_name = event.find('h2', class_='event-name').get_text(strip=True) if event.find('h2', class_='event-name') else 'N/A'
+            host_name = event.find('p', class_='host-name').get_text(strip=True) if event.find('p', class_='host-name') else 'N/A'
+            linkedin_url = event.find('a', href=True, text='LinkedIn')
+            linkedin_url = linkedin_url['href'] if linkedin_url else 'N/A'
 
-# Initialize Streamlit app
-st.set_page_config(page_title="Event Details Scraper", layout="wide")
-st.title("Event Details Scraper")
-st.markdown("This app extracts event information including the event name, host name, and LinkedIn profile URL for each event.")
+            # Append the extracted data to the events_data list
+            events_data.append({
+                'Event Name': event_name,
+                'Host Name': host_name,
+                'LinkedIn Profile URL': linkedin_url
+            })
 
-# Start the scraping process
-listing_url = "https://lu.ma/START_by_BHIVE"  # Listing page URL
+        return events_data
+    except requests.exceptions.RequestException as e:
+        return f"Error fetching data: {e}"
 
-# Scrape events
-events = scrape_event_listing(listing_url)
+# Streamlit UI setup
+st.title("Event Data Extraction")
+st.write("Enter a URL to extract event details:")
 
-if isinstance(events, list) and events:
-    # Display the event information in Streamlit
-    for event_name, host_name, linkedin_url in events:
-        st.markdown(f"### {event_name}")
-        st.markdown(f"**Host Name**: {host_name}")
-        st.markdown(f"[LinkedIn Profile]({linkedin_url})")
-        st.markdown("---")
-else:
-    st.error(f"Error scraping events: {events}")
+# URL input from the user
+url = st.text_input("Enter URL:")
+
+if url:
+    # Extract event data from the URL
+    events_data = extract_event_data_from_url(url)
+
+    if isinstance(events_data, list):
+        if events_data:
+            # Display the extracted data directly
+            st.write("Extracted Event Data:")
+            for event in events_data:
+                st.write(f"**Event Name:** {event['Event Name']}")
+                st.write(f"**Host Name:** {event['Host Name']}")
+                st.write(f"**LinkedIn Profile URL:** {event['LinkedIn Profile URL']}")
+                st.write("---")  # Separator for each event
+        else:
+            st.write("No events found on the page.")
+    else:
+        st.write(events_data)  # If there's an error message
