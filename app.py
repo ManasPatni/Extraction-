@@ -12,17 +12,17 @@ def extract_event_data(url):
         # Check if the content is HTML
         if 'html' in response.headers['Content-Type']:
             soup = BeautifulSoup(response.content, 'html.parser')
-            
-            # Extract Event Name (adjust selector as per the actual webpage structure)
-            event_name = soup.find('h1', class_='event-title')  # Adjust class based on actual HTML structure
+
+            # Extract Event Name (adjust the selector as per actual webpage structure)
+            event_name = soup.find('h1', class_='event-title')  # Modify the class as needed
             event_name = event_name.text.strip() if event_name else "Event Name not found"
 
-            # Extract Host Name (adjust selector as per the actual webpage structure)
-            host_name = soup.find('div', class_='host-name')  # Adjust class based on actual HTML structure
+            # Extract Host Name (adjust the selector as per actual webpage structure)
+            host_name = soup.find('div', class_='host-name')  # Modify the class as needed
             host_name = host_name.text.strip() if host_name else "Host Name not found"
 
-            # Extract LinkedIn Profile URL (adjust selector as per the actual HTML structure)
-            linkedin_url = soup.find('a', class_='linkedin-profile')  # Adjust class based on actual HTML structure
+            # Extract LinkedIn Profile URL (adjust the selector as per actual webpage structure)
+            linkedin_url = soup.find('a', href=True, class_='linkedin-profile')  # Modify the class as needed
             linkedin_url = linkedin_url['href'] if linkedin_url else "LinkedIn Profile URL not found"
 
             return event_name, host_name, linkedin_url
@@ -59,11 +59,11 @@ if st.button("Extract Event Data"):
         st.error("Please enter a valid URL.")
 
 # Add a description and instructions
-# st.markdown("""
-# This app extracts specific event details from the provided URL:
-# - **Event Name**
-# - **Host Name**
-# - **LinkedIn Profile URL of the Host**
+st.markdown("""
+This app extracts specific event details from the provided URL:
+- **Event Name**
+- **Host Name**
+- **LinkedIn Profile URL of the Host**
 
-# Ensure the provided webpage contains the event data in the correct format. If the event details are not found, the app will return an error message.
-# """)
+Ensure the provided webpage contains the event data in the correct format. If the event details are not found, the app will return an error message.
+""")
