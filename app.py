@@ -2,64 +2,56 @@ import streamlit as st
 import requests
 from bs4 import BeautifulSoup
 
-# Fetch news from Inshorts
-url = "https://www.inshorts.com/en/read"
-r = requests.get(url)
-content = r.content
-soup = BeautifulSoup(content, 'html.parser')
-all_news = soup.find_all('div', {'class': 'news-card z-depth-1'})
+def extract_event_data(url):
+    response = requests.get(url)
+    if response.status_code != 200:
+        return [], [], []
 
-# Since words.txt is empty, we just use an empty list
-common_words = []
+    soup = BeautifulSoup(response.text, 'html.parser')
 
-# Extract and process news
-news_data = []
-for news in all_news:
-    try:
-        headline = news.find('span', {'itemprop': 'headline'}).text.strip()
-        author = news.find('span', {'class': 'author'}).text.strip()
-        body = news.find('div', {'itemprop': 'articleBody'}).text.strip()
-        anchor = news.find('a', {'class': 'source'})
-        source_url = anchor.get('href') if anchor else ''
-        image_div = news.find('div', {'class': 'news-card-image'})
-        image_url = image_div.get('style')[23:-3] if image_div else ''
+    events = soup.find_all('div', class_='event-preview')
+    data = []
 
-        # Extract keyword (now all words are considered)
-        headline_words = headline.replace('.', '').replace(',', '').split()
-        body_words = body.replace('.', ' ').replace(',', '').split()
-        word_counts = [
-            body_words.count(word)
-            for word in headline_words
-        ]
-        keyword = headline_words[word_counts.index(max(word_counts))] if word_counts else ""
+    for event in events:
+        # Event Name
+        event_name_tag = event.find('a', class_='event-title')
+        event_name = event_name_tag.text.strip() if event_name_tag else "Not found"
 
-        news_data.append({
-            "Headline": headline,
-            "Author": author,
-            "Body": body,
-            "Source URL": source_url,
-            "Image": image_url,
-            "Keyword": keyword
+        # Host Name
+        host_name_tag = event.find('div', class_='event-hosts')
+        host_names = host_name_tag.text.strip() if host_name_tag else "Not found"
+
+        # LinkedIn URLs (if available)
+        linkedin_urls = []
+        for link in event.find_all('a', href=True):
+            if "linkedin.com" in link['href']:
+                linkedin_urls.append(link['href'])
+
+        data.append({
+            'event_name': event_name,
+            'host_names': host_names,
+            'linkedin_urls': linkedin_urls or ["Not available"]
         })
-    except Exception as e:
-        continue
 
-# Streamlit UI
-st.set_page_config(page_title="Inshorts News", layout="wide")
-st.title("🗞️ Inshorts News Summary")
-st.write("News fetched live from [Inshorts](https://www.inshorts.com/en/read).")
+    return data
 
-for item in news_data:
-    with st.container():
-        st.markdown(f"### {item['Headline']}")
-        cols = st.columns([1, 3])
-        with cols[0]:
-            if item['Image']:
-                st.image(item['Image'], width=200)
-        with cols[1]:
-            st.write(f"**Author**: {item['Author']}")
-            st.write(item['Body'])
-            if item['Source URL']:
-                st.markdown(f"[🔗 Read more]({item['Source URL']})")
-            st.markdown(f"**Keyword**: `#{item['Keyword']}`")
-        st.markdown("---")
+st.set_page_config(page_title="Luma Event Scraper", layout="centered")
+st.title("🔍 Luma Event Info Extractor")
+
+url = st.text_input("Paste the Luma event page URL:")
+
+if url:
+    with st.spinner("Extracting data..."):
+        try:
+            results = extract_event_data(url)
+            if results:
+                for idx, event in enumerate(results, 1):
+                    st.subheader(f"Event {idx}: {event['event_name']}")
+                    st.write(f"**Host(s):** {event['host_names']}")
+                    st.write("**LinkedIn Profiles:**")
+                    for link in event['linkedin_urls']:
+                        st.write(f"- {link}")
+            else:
+                st.warning("No events found or page structure has changed.")
+        except Exception as e:
+            st.error(f"Error: {e}")
