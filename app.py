@@ -1,18 +1,34 @@
 import streamlit as st
-import requests
 from bs4 import BeautifulSoup
 from groq import Groq
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from webdriver_manager.chrome import ChromeDriverManager
+import time
 
-# Hardcoded Groq API key
+# Groq API key
 GROQ_API_KEY = "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"
 
-# Function to extract event data
-def extract_event_data(url):
-    response = requests.get(url)
-    if response.status_code != 200:
-        return []
+# Setup headless browser
+def get_rendered_html(url):
+    chrome_options = Options()
+    chrome_options.add_argument("--headless=new")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
 
-    soup = BeautifulSoup(response.text, 'html.parser')
+    driver = webdriver.Chrome(ChromeDriverManager().install(), options=chrome_options)
+    driver.get(url)
+
+    # Wait for JavaScript to render
+    time.sleep(5)
+    html = driver.page_source
+    driver.quit()
+    return html
+
+# Extract data from rendered HTML
+def extract_event_data(url):
+    html = get_rendered_html(url)
+    soup = BeautifulSoup(html, 'html.parser')
     events = soup.find_all('div', class_='event-preview')
     data = []
 
@@ -25,7 +41,7 @@ def extract_event_data(url):
         host_name_tag = event.find('div', class_='event-hosts')
         host_names = host_name_tag.text.strip() if host_name_tag else "Not found"
 
-        # LinkedIn URLs (if available)
+        # LinkedIn URLs
         linkedin_urls = []
         for link in event.find_all('a', href=True):
             if "linkedin.com" in link['href']:
@@ -39,7 +55,7 @@ def extract_event_data(url):
 
     return data
 
-# Function to enhance with Groq AI
+# Groq AI enhancement
 def enhance_with_groq(data, api_key):
     client = Groq(api_key=api_key)
     enhanced_data = []
