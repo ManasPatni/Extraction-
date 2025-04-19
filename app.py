@@ -2,114 +2,84 @@ import streamlit as st
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
-import time
 from urllib.parse import urljoin
+import time
 
-# Optional: Groq API Integration
-try:
-    chat = ChatGroq(
-        model_name="llama3-70b-8192", 
-        temperature=0.7, 
-        groq_api_key="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"
-    )
-except Exception as e:
-    st.error(f"⚠️ Chat model initialization failed: {str(e)}")
-    chat = None 
+st.set_page_config(page_title="Event Scraper", layout="wide")
+st.title("🎯 Event & Host LinkedIn Scraper")
+st.markdown("Scrapes event data from [START_by_BHIVE](https://lu.ma/START_by_BHIVE)")
 
-# App config
-st.set_page_config(page_title="Lu.ma Event Scraper", layout="centered")
-st.title("📅 Lu.ma Event Scraper with Host Info")
-st.markdown("Scrape **Event Name**, **Host Name**, and **LinkedIn Profile URL** from [START by BHIVE](https://lu.ma/START_by_BHIVE)")
+# Button to start scraping
+if st.button("Start Scraping"):
+    with st.spinner("Scraping event data, please wait..."):
 
-start_scraping = st.button("🚀 Start Scraping Events")
+        base_url = "https://lu.ma/START_by_BHIVE"
+        headers = {
+            "User-Agent": "Mozilla/5.0"
+        }
 
-@st.cache_data
-def fetch_event_links(main_url):
-    res = requests.get(main_url)
-    soup = BeautifulSoup(res.content, 'html.parser')
-    event_links = []
-    for a in soup.find_all("a", href=True):
-        if '/event/' in a['href']:
-            full_url = urljoin(main_url, a['href'])
-            event_links.append(full_url)
-    return list(set(event_links))
+        response = requests.get(base_url, headers=headers)
+        soup = BeautifulSoup(response.content, "html.parser")
 
-def summarize_with_groq(text):
-    try:
-        response = openai.ChatCompletion.create(
-            model="llama3-8b-8192",
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant that summarizes event descriptions."},
-                {"role": "user", "content": text}
-            ]
-        )
-        return response["choices"][0]["message"]["content"]
-    except Exception as e:
-        return f"Summary failed: {e}"
+        events_data = []
 
-def extract_event_data(event_url):
-    try:
-        res = requests.get(event_url)
-        soup = BeautifulSoup(res.content, 'html.parser')
+        # STEP 1: Find all event links
+        events = soup.find_all("a", href=True)
+        event_links = [urljoin(base_url, a["href"]) for a in events if "/event/" in a["href"]]
 
-        event_name_tag = soup.find('h1')
-        event_name = event_name_tag.get_text(strip=True) if event_name_tag else "N/A"
+        unique_event_links = list(set(event_links))  # Remove duplicates
 
-        # Event description (optional Groq)
-        description = soup.find('div', {'data-testid': 'event-description'})
-        event_description = description.get_text(strip=True) if description else "No description available"
+        for event_url in unique_event_links:
+            try:
+                event_page = requests.get(event_url, headers=headers)
+                event_soup = BeautifulSoup(event_page.content, "html.parser")
 
-        summary = summarize_with_groq(event_description) if use_groq else "Not generated"
+                # Get Event Name
+                title_tag = event_soup.find("h1")
+                event_name = title_tag.text.strip() if title_tag else "N/A"
 
-        host_data = []
-        host_section = soup.find_all('a', href=True)
-        for host in host_section:
-            if "/u/" in host['href']:
-                host_name = host.text.strip()
-                host_profile_url = urljoin(event_url, host['href'])
+                # Hosts are in sidebar (look for 'Hosted by' section)
+                hosted_by_section = event_soup.find_all("a", href=True)
+                for host_tag in hosted_by_section:
+                    if "/u/" in host_tag["href"]:  # Host profile links
+                        host_name = host_tag.text.strip()
+                        host_profile_url = urljoin("https://lu.ma", host_tag["href"])
 
-                # Visit host profile
-                host_res = requests.get(host_profile_url)
-                host_soup = BeautifulSoup(host_res.content, 'html.parser')
+                        # Go to host profile page to get LinkedIn
+                        host_page = requests.get(host_profile_url, headers=headers)
+                        host_soup = BeautifulSoup(host_page.content, "html.parser")
 
-                linkedin_tag = host_soup.find('a', href=True, string=lambda x: x and 'linkedin.com' in x)
-                linkedin_url = linkedin_tag['href'] if linkedin_tag else "Not Found"
+                        linkedin_url = "N/A"
+                        for a_tag in host_soup.find_all("a", href=True):
+                            if "linkedin.com/in" in a_tag["href"]:
+                                linkedin_url = a_tag["href"]
+                                break
 
-                host_data.append({
-                    "Event Name": event_name,
-                    "Host Name": host_name,
-                    "LinkedIn Profile URL": linkedin_url,
-                    "Event Summary (via Groq)" if use_groq else "Event Summary": summary
-                })
+                        events_data.append({
+                            "Event Name": event_name,
+                            "Host Name": host_name,
+                            "LinkedIn Profile URL": linkedin_url
+                        })
 
-        return host_data
-    except Exception as e:
-        st.warning(f"Failed to extract data from {event_url} due to {e}")
-        return []
+                time.sleep(1)  # To avoid rate limiting
 
-if start_scraping:
-    main_url = "https://lu.ma/START_by_BHIVE"
-    st.info("Fetching events from Lu.ma...")
-    event_urls = fetch_event_links(main_url)
+            except Exception as e:
+                st.warning(f"Failed to scrape {event_url}: {str(e)}")
 
-    st.success(f"Found {len(event_urls)} event pages!")
-    scraped_data = []
+        # Convert to DataFrame
+        df = pd.DataFrame(events_data)
 
-    progress_bar = st.progress(0)
+        if not df.empty:
+            st.success(f"✅ Scraped {len(df)} host entries.")
+            st.dataframe(df)
 
-    for idx, event_url in enumerate(event_urls):
-        st.write(f"🔍 Scraping: {event_url}")
-        event_data = extract_event_data(event_url)
-        scraped_data.extend(event_data)
-        progress_bar.progress((idx + 1) / len(event_urls))
-        time.sleep(1)
-
-    if scraped_data:
-        df = pd.DataFrame(scraped_data)
-        st.success("✅ Scraping completed successfully!")
-        st.dataframe(df)
-
-        csv = df.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Download CSV", csv, "event_data.csv", "text/csv")
-    else:
-        st.error("❌ No data extracted.")
+            # Download CSV
+            csv = df.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                label="📥 Download CSV",
+                data=csv,
+                file_name="event_hosts_data.csv",
+                mime="text/csv"
+            )
+        else:
+            st.warning("No event data found.")
