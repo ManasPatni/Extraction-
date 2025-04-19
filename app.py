@@ -1,108 +1,74 @@
-import streamlit as st
+import requests
 from bs4 import BeautifulSoup
-from groq import Groq
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager
-import time
+import streamlit as st
 
-# OpenAI API key (Your provided API key)
-OPENAI_API_KEY = "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"
+# Function to extract the event details
+def extract_event_details(event_url):
+    """Extract event details including the event name, host name, and LinkedIn profile URL."""
+    try:
+        # Make a request to the event detail page
+        response = requests.get(event_url)
+        response.raise_for_status()
+        
+        # Parse the HTML content
+        soup = BeautifulSoup(response.text, 'html.parser')
 
-# Setup headless browser
-def get_rendered_html(url):
-    chrome_options = Options()
-    chrome_options.add_argument("--headless=new")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
+        # Extract event name
+        event_name = soup.find('h1', class_='event-title').text.strip()
 
-    driver = webdriver.Chrome(ChromeDriverManager().install(), options=chrome_options)
-    driver.get(url)
+        # Extract the host name and LinkedIn URL
+        host_section = soup.find('section', class_='host-section')
+        host_name = host_section.find('span', class_='host-name').text.strip()
+        linkedin_url = host_section.find('a', class_='linkedin-link')['href']
+        
+        return event_name, host_name, linkedin_url
+    except Exception as e:
+        return None, None, f"Error: {str(e)}"
 
-    # Wait for JavaScript to render
-    time.sleep(5)
-    html = driver.page_source
-    driver.quit()
-    return html
+# Function to scrape the event listing page
+def scrape_event_listing(listing_url):
+    """Scrape event listing page for all event details."""
+    try:
+        # Send a request to the event listing page
+        response = requests.get(listing_url)
+        response.raise_for_status()
+        
+        # Parse the page content
+        soup = BeautifulSoup(response.text, 'html.parser')
 
-# Extract data from rendered HTML
-def extract_event_data(url):
-    html = get_rendered_html(url)
-    soup = BeautifulSoup(html, 'html.parser')
-    events = soup.find_all('div', class_='event-preview')
-    data = []
+        # Find all event links on the listing page
+        event_links = []
+        for event in soup.find_all('a', class_='event-link'):
+            event_links.append(event['href'])
+        
+        # Extract details for each event
+        events = []
+        for event_url in event_links:
+            event_name, host_name, linkedin_url = extract_event_details(event_url)
+            if event_name and host_name:
+                events.append((event_name, host_name, linkedin_url))
+        
+        return events
+    except Exception as e:
+        return f"Error: {str(e)}"
 
-    for event in events:
-        # Event Name
-        event_name_tag = event.find('a', class_='event-title')
-        event_name = event_name_tag.text.strip() if event_name_tag else "Not found"
+# Initialize Streamlit app
+st.set_page_config(page_title="Event Details Scraper", layout="wide")
+st.title("Event Details Scraper")
+st.markdown("This app extracts event information including the event name, host name, and LinkedIn profile URL for each event.")
 
-        # Host Name
-        host_name_tag = event.find('div', class_='event-hosts')
-        host_names = host_name_tag.text.strip() if host_name_tag else "Not found"
+# Start the scraping process
+listing_url = "https://lu.ma/START_by_BHIVE"  # Listing page URL
 
-        # LinkedIn URLs
-        linkedin_urls = []
-        for link in event.find_all('a', href=True):
-            if "linkedin.com" in link['href']:
-                linkedin_urls.append(link['href'])
+# Scrape events
+events = scrape_event_listing(listing_url)
 
-        data.append({
-            'event_name': event_name,
-            'host_names': host_names,
-            'linkedin_urls': linkedin_urls or ["Not available"]
-        })
-
-    return data
-
-# OpenAI enhancement (Replace with OpenAI API integration)
-def enhance_with_openai(data, api_key):
-    # Set up OpenAI API client
-    import openai
-    openai.api_key = api_key
-    enhanced_data = []
-
-    for event in data:
-        prompt = f"""
-You are given details of an event:
-Event Name: {event['event_name']}
-Host Names: {event['host_names']}
-LinkedIn URLs: {', '.join(event['linkedin_urls'])}
-
-Your task is:
-1. Provide a short, catchy summary of this event.
-2. Make a guess about the kind of audience it targets.
-3. Clean up the host name formatting.
-4. Return it in a readable format.
-"""
-        # Make API request
-        response = openai.Completion.create(
-            model="gpt-4",  # You can change this to a different model if needed
-            prompt=prompt,
-            max_tokens=150
-        )
-
-        enhanced_text = response.choices[0].text.strip()
-        enhanced_data.append((event['event_name'], enhanced_text))
-
-    return enhanced_data
-
-# Streamlit UI
-st.set_page_config(page_title="Luma Event Scraper + OpenAI", layout="centered")
-st.title("🤖 Luma Event Info Extractor + OpenAI")
-
-url = st.text_input("Paste the Luma event page URL:")
-
-if url:
-    with st.spinner("Extracting and enhancing data..."):
-        try:
-            raw_data = extract_event_data(url)
-            if raw_data:
-                enhanced = enhance_with_openai(raw_data, OPENAI_API_KEY)
-                for idx, (event_name, enhanced_text) in enumerate(enhanced, 1):
-                    st.subheader(f"Event {idx}: {event_name}")
-                    st.markdown(enhanced_text)
-            else:
-                st.warning("No events found or page structure has changed.")
-        except Exception as e:
-            st.error(f"Error: {e}")
+if isinstance(events, list) and events:
+    # Display the event information in Streamlit
+    for event_name, host_name, linkedin_url in events:
+        st.markdown(f"### {event_name}")
+        st.markdown(f"**Host Name**: {host_name}")
+        st.markdown(f"[LinkedIn Profile]({linkedin_url})")
+        st.markdown("---")
+else:
+    st.error(f"Error scraping events: {events}")
