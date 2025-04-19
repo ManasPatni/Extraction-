@@ -59,11 +59,11 @@ if st.button("Extract Event Data"):
         st.error("Please enter a valid URL.")
 
 # Add a description and instructions
-st.markdown("""
-This app extracts specific event details from the provided URL:
-- **Event Name**
-- **Host Name**
-- **LinkedIn Profile URL of the Host**
+# st.markdown("""
+# This app extracts specific event details from the provided URL:
+# - **Event Name**
+# - **Host Name**
+# - **LinkedIn Profile URL of the Host**
 
-Ensure the provided webpage contains the event data in the correct format. If the event details are not found, the app will return an error message.
-""")
+# Ensure the provided webpage contains the event data in the correct format. If the event details are not found, the app will return an error message.
+# """)
