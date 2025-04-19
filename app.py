@@ -24,7 +24,7 @@ st.markdown("""
 st.markdown("## 📅 Lu.ma Event Scraper")
 st.markdown("Paste the URL of any Lu.ma listing page (e.g., [https://lu.ma/START_by_BHIVE](https://lu.ma/START_by_BHIVE))")
 
-listing_url = st.text_input("Lu.ma Event Listing URL:", value="https://lu.ma/START_by_BHIVE")
+listing_url = st.text_input("Paste the url:", value="https://lu.ma/START_by_BHIVE")
 
 # --- Scraping Function ---
 @st.cache_data(show_spinner=True)
