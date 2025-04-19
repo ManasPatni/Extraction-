@@ -13,15 +13,15 @@ def extract_event_data(url):
         if 'html' in response.headers['Content-Type']:
             soup = BeautifulSoup(response.content, 'html.parser')
 
-            # Extract Event Name (adjust the selector as per actual webpage structure)
+            # Extract Event Name (you need to modify the selector based on the actual webpage structure)
             event_name = soup.find('h1', class_='event-title')  # Modify the class as needed
             event_name = event_name.text.strip() if event_name else "Event Name not found"
 
-            # Extract Host Name (adjust the selector as per actual webpage structure)
+            # Extract Host Name (you need to modify the selector based on the actual webpage structure)
             host_name = soup.find('div', class_='host-name')  # Modify the class as needed
             host_name = host_name.text.strip() if host_name else "Host Name not found"
 
-            # Extract LinkedIn Profile URL (adjust the selector as per actual webpage structure)
+            # Extract LinkedIn Profile URL (you need to modify the selector based on the actual webpage structure)
             linkedin_url = soup.find('a', href=True, class_='linkedin-profile')  # Modify the class as needed
             linkedin_url = linkedin_url['href'] if linkedin_url else "LinkedIn Profile URL not found"
 
@@ -33,37 +33,40 @@ def extract_event_data(url):
         return f"Error fetching data: {e}", None, None
 
 # Streamlit UI setup
-st.title("Event Data Extraction")
+st.title("Event Data Extraction from URL")
 st.write("Enter a URL to extract Event Details:")
 
 # URL input from the user
 url = st.text_input("Enter URL:")
 
-# Add a button to start the extraction
+# Add a button to start the extraction process
 if st.button("Extract Event Data"):
     if url:
         # Display a loading spinner while fetching data
         with st.spinner("Fetching event data from the URL..."):
             event_name, host_name, linkedin_url = extract_event_data(url)
+            
             if event_name and host_name and linkedin_url:
                 st.success("Data extracted successfully!")
 
-                # Display extracted data
+                # Display extracted event data
                 st.subheader("Event Details:")
                 st.write(f"**Event Name:** {event_name}")
                 st.write(f"**Host Name:** {host_name}")
                 st.write(f"**LinkedIn Profile URL of the Host:** [{linkedin_url}]({linkedin_url})")
             else:
-                st.error("Error extracting event data.")
+                st.error("Error extracting event data. Ensure the webpage has the correct structure.")
     else:
         st.error("Please enter a valid URL.")
 
 # Add a description and instructions
 st.markdown("""
-This app extracts specific event details from the provided URL:
+This app allows you to extract specific event details from the provided URL. The data that will be extracted includes:
 - **Event Name**
 - **Host Name**
 - **LinkedIn Profile URL of the Host**
 
-Ensure the provided webpage contains the event data in the correct format. If the event details are not found, the app will return an error message.
+To get accurate results, ensure that the webpage contains the event data in the expected format (e.g., Event Name in a `<h1 class="event-title">`, Host Name in a `<div class="host-name">`, and LinkedIn URL in a `<a class="linkedin-profile">`).
+
+If the data cannot be found, you will receive an error message.
 """)
