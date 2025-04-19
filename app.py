@@ -6,8 +6,8 @@ from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
 import time
 
-# Groq API key
-GROQ_API_KEY = "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"
+# OpenAI API key (Your provided API key)
+OPENAI_API_KEY = "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"
 
 # Setup headless browser
 def get_rendered_html(url):
@@ -55,9 +55,11 @@ def extract_event_data(url):
 
     return data
 
-# Groq AI enhancement
-def enhance_with_groq(data, api_key):
-    client = Groq(api_key=api_key)
+# OpenAI enhancement (Replace with OpenAI API integration)
+def enhance_with_openai(data, api_key):
+    # Set up OpenAI API client
+    import openai
+    openai.api_key = api_key
     enhanced_data = []
 
     for event in data:
@@ -73,19 +75,21 @@ Your task is:
 3. Clean up the host name formatting.
 4. Return it in a readable format.
 """
-        chat_completion = client.chat.completions.create(
-            messages=[{"role": "user", "content": prompt}],
-            model="llama3-8b-8192"
+        # Make API request
+        response = openai.Completion.create(
+            model="gpt-4",  # You can change this to a different model if needed
+            prompt=prompt,
+            max_tokens=150
         )
 
-        result = chat_completion.choices[0].message.content
-        enhanced_data.append((event['event_name'], result))
+        enhanced_text = response.choices[0].text.strip()
+        enhanced_data.append((event['event_name'], enhanced_text))
 
     return enhanced_data
 
 # Streamlit UI
-st.set_page_config(page_title="Luma Event Scraper + Groq AI", layout="centered")
-st.title("🤖 Luma Event Info Extractor + Groq AI")
+st.set_page_config(page_title="Luma Event Scraper + OpenAI", layout="centered")
+st.title("🤖 Luma Event Info Extractor + OpenAI")
 
 url = st.text_input("Paste the Luma event page URL:")
 
@@ -94,7 +98,7 @@ if url:
         try:
             raw_data = extract_event_data(url)
             if raw_data:
-                enhanced = enhance_with_groq(raw_data, GROQ_API_KEY)
+                enhanced = enhance_with_openai(raw_data, OPENAI_API_KEY)
                 for idx, (event_name, enhanced_text) in enumerate(enhanced, 1):
                     st.subheader(f"Event {idx}: {event_name}")
                     st.markdown(enhanced_text)
